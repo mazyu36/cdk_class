@@ -1,8 +1,8 @@
 {
-  "name": "cdk_vpc_test",
+  "name": "base_project",
   "version": "0.1.0",
   "bin": {
-    "cdk_vpc_test": "bin/cdk_vpc_test.js"
+    "base_project": "bin/base_project.js"
   },
   "scripts": {
     "build": "tsc",

@@ -1,10 +1,14 @@
-import { aws_ec2 as ec2, StackProps } from "aws-cdk-lib";
+import * as cdk from 'aws-cdk-lib';
+import { aws_ec2 as ec2 } from "aws-cdk-lib";
+import { aws_kms as kms } from 'aws-cdk-lib';
+import { aws_iam as iam } from 'aws-cdk-lib';
+import { aws_s3 as s3 } from 'aws-cdk-lib';
+
 import { Construct } from "constructs";
 import { getVpcConfig } from "../config/VpcConfig";
-import { BaseResource } from "./abstract/BaseResource";
+import { VpcConfig } from "../config/VpcConfig";
 
-
-export class Vpc extends BaseResource {
+export class Vpc {
     public readonly vpc: ec2.Vpc;
     public readonly frontendSubnet1a: ec2.PublicSubnet;
     public readonly frontendSubnet1c: ec2.PublicSubnet;
@@ -13,30 +17,31 @@ export class Vpc extends BaseResource {
     public readonly datalinkSubnet1a: ec2.PrivateSubnet;
     public readonly datalinkSubnet1c: ec2.PrivateSubnet;
 
-    constructor(scope: Construct) {
-        super();
-
+    constructor(scope: Construct, prefix: String) {
+        // ----------------------- 設定値 ------------------------------
         // contextから環境名を取得
         const env: string = scope.node.tryGetContext("env")
 
         // Configを取得
-        const vpcConfig = getVpcConfig(env) 
+        const vpcConfig: VpcConfig = getVpcConfig(env)
 
+
+        // ----------------------- VPC ------------------------------
         // VPCを作成
-        this.vpc = new ec2.Vpc(scope, 'Vpc',
-            {
-                natGateways: 0,  
-                maxAzs: 2,  
-                cidr: vpcConfig.networkAddress + '0.0/16',
-                subnetConfiguration: []  // デフォルトではAZごとにSubnetが作られてしまうため、明示的に作らないよう指定
-            }
+        this.vpc = new ec2.Vpc(scope, 'Vpc', {
+            natGateways: 0,
+            maxAzs: 2,
+            cidr: `${vpcConfig.networkAddress}.0.0/16`,
+            subnetConfiguration: [],  // デフォルトではAZごとにSubnetが作られてしまうため、明示的に作らないよう指定,
+            vpcName: `${prefix}-VPC`
+        }
         )
 
         // インターネットゲートウェイを作成
         const cfnInternetGateway = new ec2.CfnInternetGateway(scope, 'InternetGateway', {
             tags: [{
                 key: 'Name',
-                value: this.createResourceName(scope, 'internet-gateway')
+                value: `${prefix}-IGW`
             }]
         })
 
@@ -46,104 +51,165 @@ export class Vpc extends BaseResource {
             internetGatewayId: cfnInternetGateway.ref
         })
 
+
+        // ----------------------- FrontendSubnet ------------------------------
         // FrontendSubnet（1a）を作成
-        const frontendSubnet1a = new ec2.PublicSubnet(scope, 'FrontendSubnet1a',
+        this.frontendSubnet1a = new ec2.PublicSubnet(scope, 'FrontendSubnet1a',
             {
-                availabilityZone: 'ap-northeast-1a',  // AZを指定
-                vpcId: this.vpc.vpcId,  // VPCのIDを参照
-                cidrBlock: vpcConfig.networkAddress + '0.0/24'
+                availabilityZone: 'ap-northeast-1a',
+                vpcId: this.vpc.vpcId,
+                cidrBlock: `${vpcConfig.networkAddress}.0.0/24`
             }
         )
-        frontendSubnet1a.addDefaultInternetRoute(cfnInternetGateway.ref, gatewayAttachment)
+        cdk.Tags.of(this.frontendSubnet1a).add('Name', `${prefix}-frontend-subnet-1a`)
 
         // FrontendSubnet（1c）を作成
-        const frontendSubnet1c = new ec2.PublicSubnet(scope, 'FrontendSubnet1c',
+        this.frontendSubnet1c = new ec2.PublicSubnet(scope, 'FrontendSubnet1c',
             {
-                availabilityZone: 'ap-northeast-1c',  // AZを指定
-                vpcId: this.vpc.vpcId,  // VPCのIDを参照
-                cidrBlock: vpcConfig.networkAddress + '1.0/24'
+                availabilityZone: 'ap-northeast-1c',
+                vpcId: this.vpc.vpcId,
+                cidrBlock: `${vpcConfig.networkAddress}.1.0/24`
             }
         )
-        frontendSubnet1c.addDefaultInternetRoute(cfnInternetGateway.ref, gatewayAttachment)
+        this.frontendSubnet1c.addDefaultInternetRoute(cfnInternetGateway.ref, gatewayAttachment)
+        cdk.Tags.of(this.frontendSubnet1c).add('Name', `${prefix}-frontend-subnet-1c`)
 
 
+        // ----------------------- BackendSubnet ------------------------------
         // BackendSubnet（1a）を作成
-        const backendSubnet1a = new ec2.PublicSubnet(scope, 'BackendSubnet1a',
+        this.backendSubnet1a = new ec2.PublicSubnet(scope, 'BackendSubnet1a',
             {
                 availabilityZone: 'ap-northeast-1a',
                 vpcId: this.vpc.vpcId,
-                cidrBlock: vpcConfig.networkAddress + '10.0/24',
+                cidrBlock: `${vpcConfig.networkAddress}.10.0/24`,
                 mapPublicIpOnLaunch: false
             }
         )
-        backendSubnet1a.addDefaultInternetRoute(cfnInternetGateway.ref, gatewayAttachment)
+        this.backendSubnet1a.addDefaultInternetRoute(cfnInternetGateway.ref, gatewayAttachment)
+        cdk.Tags.of(this.backendSubnet1a).add('Name', `${prefix}-backtend-subnet-1a`)
 
         // BackendSubnet（1c）を作成
-        const backendSubnet1c = new ec2.PublicSubnet(scope, 'BackendSubnet1c',
+        this.backendSubnet1c = new ec2.PublicSubnet(scope, 'BackendSubnet1c',
             {
                 availabilityZone: 'ap-northeast-1c',
                 vpcId: this.vpc.vpcId,
-                cidrBlock: vpcConfig.networkAddress + '11.0/24',
+                cidrBlock: `${vpcConfig.networkAddress}.11.0/24`,
                 mapPublicIpOnLaunch: false
             }
         )
-        backendSubnet1c.addDefaultInternetRoute(cfnInternetGateway.ref, gatewayAttachment)
+        this.backendSubnet1c.addDefaultInternetRoute(cfnInternetGateway.ref, gatewayAttachment)
+        cdk.Tags.of(this.backendSubnet1c).add('Name', `${prefix}-backend-subnet-1c`)
 
+
+        // ----------------------- DatalinkSubnet ------------------------------
         // DatalinkSubnet（1a）を作成
-        const datalinkSubnet1a = new ec2.PrivateSubnet(scope, 'DatalinkSubnet1a',
+        this.datalinkSubnet1a = new ec2.PrivateSubnet(scope, 'DatalinkSubnet1a',
             {
                 availabilityZone: 'ap-northeast-1a',
                 vpcId: this.vpc.vpcId,
-                cidrBlock: vpcConfig.networkAddress + '100.0/24',
+                cidrBlock: `${vpcConfig.networkAddress}.100.0/24`,
                 mapPublicIpOnLaunch: false
             }
         )
+        cdk.Tags.of(this.datalinkSubnet1a).add('Name', `${prefix}-datalink-subnet-1a`)
 
-        // BackendSubnet（1c）を作成
-        const datalinkSubnet1c = new ec2.PrivateSubnet(scope, 'DatalinkSubnet1c',
+        // DatalinkSubnet（1c）を作成
+        this.datalinkSubnet1c = new ec2.PrivateSubnet(scope, 'DatalinkSubnet1c',
             {
                 availabilityZone: 'ap-northeast-1c',
                 vpcId: this.vpc.vpcId,
-                cidrBlock: vpcConfig.networkAddress + '101.0/24',
+                cidrBlock: `${vpcConfig.networkAddress}.101.0/24`,
                 mapPublicIpOnLaunch: false
             }
         )
+        cdk.Tags.of(this.datalinkSubnet1c).add('Name', `${prefix}-datalink-subnet-1c`)
 
 
-
-
-        const aclCidr = ec2.AclCidr.ipv4(vpcConfig.networkAddress+"0.0/23");
+        // ----------------------- NACL ------------------------------
         const aclTraffic = ec2.AclTraffic.allTraffic();
 
-
-        const backendNetworkAcl = new ec2.NetworkAcl(scope, 'BackendNetworkAcl', {
+        const backendNacl = new ec2.NetworkAcl(scope, 'BackendNacl', {
             vpc: this.vpc,
-
             // the properties below are optional
             networkAclName: 'networkAclName',
             subnetSelection: {
-                subnets: [backendSubnet1a,backendSubnet1c],
+                subnets: [this.backendSubnet1a, this.backendSubnet1c],
             },
         });
+        cdk.Tags.of(backendNacl).add('Name', `${prefix}-backend-nacl`)
 
-        /*
-            Frontend -> Backend
-            backend -> DB
-            戻り
-        */
-
-        const backendNetworkAclEntry = new ec2.NetworkAclEntry(scope, 'BackendNetworkAclEntry', {
-            cidr: aclCidr,
-            networkAcl: backendNetworkAcl,
-            ruleNumber: 123,
+        // FrontendSubnet -> BackendSubnetのアクセスを許可
+        const frontendCidr = ec2.AclCidr.ipv4(vpcConfig.networkAddress + "0.0/23");
+        backendNacl.addEntry('IngressFromFrontendSubnet', {
+            cidr: frontendCidr,
+            ruleNumber: 100,
             traffic: aclTraffic,
-
             direction: ec2.TrafficDirection.INGRESS,
-            networkAclEntryName: 'networkAclEntryName',
+            networkAclEntryName: `${prefix}-NaclEntry-ingress-from-frontendSubnet`,
             ruleAction: ec2.Action.ALLOW,
         });
 
+        // BackendSubnet <- DatalinkSubnetのアクセスを許可
+        const datalinkCidr = ec2.AclCidr.ipv4(vpcConfig.networkAddress + "100.0/23");
+        backendNacl.addEntry('IngressFromDatalinkSubnet', {
+            cidr: datalinkCidr,
+            ruleNumber: 110,
+            traffic: aclTraffic,
+            direction: ec2.TrafficDirection.INGRESS,
+            networkAclEntryName: `${prefix}-NaclEntry-ingress-from-datalinkSubnet`,
+            ruleAction: ec2.Action.ALLOW,
+        });
 
+        const defaultCidr = ec2.AclCidr.ipv4('0.0.0.0/0');
+        // DefaultCidr -> BackendSubnetの通信はブロック
+        backendNacl.addEntry('IngressFromDefaultCidr', {
+            cidr: defaultCidr,
+            ruleNumber: 999,
+            traffic: aclTraffic,
+            direction: ec2.TrafficDirection.EGRESS,
+            networkAclEntryName: `${prefix}-NaclEntry-ingress-from-defaultcidr`,
+            ruleAction: ec2.Action.DENY,
+        });
+
+        // BackendSubnet -> DefaultCidrの通信を許可
+        backendNacl.addEntry('Egress', {
+            cidr: defaultCidr,
+            ruleNumber: 100,
+            traffic: aclTraffic,
+            direction: ec2.TrafficDirection.EGRESS,
+            networkAclEntryName: `${prefix}-NaclEntry-outbound-to-defaultcidr`,
+            ruleAction: ec2.Action.ALLOW,
+        });
+
+        // ----------------------- VPCフローログ ------------------------------
+        // CMK
+        const flowLogKey = new kms.Key(scope, 'Key', {
+            enableKeyRotation: true,
+            description: 'for VPC Flow log',
+            alias: `${prefix}for-flowlog`,
+        });
+        flowLogKey.addToResourcePolicy(
+            new iam.PolicyStatement({
+                actions: ['kms:Encrypt*', 'kms:Decrypt*', 'kms:ReEncrypt*', 'kms:GenerateDataKey*', 'kms:Describe*'],
+                principals: [new iam.ServicePrincipal('delivery.logs.amazonaws.com')],
+                resources: ['*'],
+            }),
+        );
+
+        // Bucket
+        const flowLogBucket = new s3.Bucket(scope, 'FlowLogBucket', {
+            accessControl: s3.BucketAccessControl.PRIVATE,
+            encryptionKey: flowLogKey,
+            encryption: s3.BucketEncryption.KMS,
+            autoDeleteObjects: vpcConfig.autoDeleteObjects,
+            blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+            removalPolicy: vpcConfig.removalpolicy,
+        });
+
+        this.vpc.addFlowLog('FlowLogs', {
+            destination: ec2.FlowLogDestination.toS3(flowLogBucket),
+            trafficType: ec2.FlowLogTrafficType.ALL,
+        });
     };
 
 }

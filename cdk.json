@@ -1,5 +1,5 @@
 {
-  "app": "npx ts-node --prefer-ts-exts bin/cdk_vpc_test.ts",
+  "app": "npx ts-node --prefer-ts-exts bin/base_project.ts",
   "watch": {
     "include": [
       "**"
