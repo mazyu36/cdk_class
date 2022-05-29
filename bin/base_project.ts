@@ -6,7 +6,7 @@ import { EnvironmentConfig, getEnvironmentConfig } from './config/EnvironmentCon
 import { DisposableStack } from '../lib/stacks/DisposableStack';
 
 const app = new cdk.App();
-
+// aiueokakikukeko
 // ----------------------- contextの値取得、および必要なパラメータの取得・生成 ------------------------------
 // contextから環境の情報を取得。未設定の場合はエラーとする。
 const envType = app.node.tryGetContext('env');
