@@ -8,7 +8,7 @@ import { Construct } from "constructs";
 import { getVpcConfig } from "../config/VpcConfig";
 import { VpcConfig } from "../config/VpcConfig";
 
-export class Vpc {
+export class VpcResources {
     public readonly vpc: ec2.Vpc;
     public readonly frontendSubnet1a: ec2.PublicSubnet;
     public readonly frontendSubnet1c: ec2.PublicSubnet;
@@ -32,7 +32,7 @@ export class Vpc {
             natGateways: 0,
             maxAzs: 2,
             cidr: `${vpcConfig.networkAddress}.0.0/16`,
-            subnetConfiguration: [],  // デフォルトではAZごとにSubnetが作られてしまうため、明示的に作らないよう指定,
+            subnetConfiguration: [],  // Subnetは後続で作成
             vpcName: `${prefix}-VPC`
         }
         )
@@ -58,9 +58,11 @@ export class Vpc {
             {
                 availabilityZone: 'ap-northeast-1a',
                 vpcId: this.vpc.vpcId,
-                cidrBlock: `${vpcConfig.networkAddress}.0.0/24`
+                cidrBlock: `${vpcConfig.networkAddress}.0.0/24`,
+                mapPublicIpOnLaunch: true
             }
         )
+        this.frontendSubnet1a.addDefaultInternetRoute(cfnInternetGateway.ref, gatewayAttachment)
         cdk.Tags.of(this.frontendSubnet1a).add('Name', `${prefix}-frontend-subnet-1a`)
 
         // FrontendSubnet（1c）を作成
@@ -68,7 +70,8 @@ export class Vpc {
             {
                 availabilityZone: 'ap-northeast-1c',
                 vpcId: this.vpc.vpcId,
-                cidrBlock: `${vpcConfig.networkAddress}.1.0/24`
+                cidrBlock: `${vpcConfig.networkAddress}.1.0/24`,
+                mapPublicIpOnLaunch: true
             }
         )
         this.frontendSubnet1c.addDefaultInternetRoute(cfnInternetGateway.ref, gatewayAttachment)
@@ -82,7 +85,7 @@ export class Vpc {
                 availabilityZone: 'ap-northeast-1a',
                 vpcId: this.vpc.vpcId,
                 cidrBlock: `${vpcConfig.networkAddress}.10.0/24`,
-                mapPublicIpOnLaunch: false
+                mapPublicIpOnLaunch: true
             }
         )
         this.backendSubnet1a.addDefaultInternetRoute(cfnInternetGateway.ref, gatewayAttachment)
@@ -94,7 +97,7 @@ export class Vpc {
                 availabilityZone: 'ap-northeast-1c',
                 vpcId: this.vpc.vpcId,
                 cidrBlock: `${vpcConfig.networkAddress}.11.0/24`,
-                mapPublicIpOnLaunch: false
+                mapPublicIpOnLaunch: true
             }
         )
         this.backendSubnet1c.addDefaultInternetRoute(cfnInternetGateway.ref, gatewayAttachment)
@@ -139,7 +142,7 @@ export class Vpc {
         cdk.Tags.of(backendNacl).add('Name', `${prefix}-backend-nacl`)
 
         // FrontendSubnet -> BackendSubnetのアクセスを許可
-        const frontendCidr = ec2.AclCidr.ipv4(vpcConfig.networkAddress + "0.0/23");
+        const frontendCidr = ec2.AclCidr.ipv4(`${vpcConfig.networkAddress}.0.0/23`);
         backendNacl.addEntry('IngressFromFrontendSubnet', {
             cidr: frontendCidr,
             ruleNumber: 100,
@@ -150,7 +153,7 @@ export class Vpc {
         });
 
         // BackendSubnet <- DatalinkSubnetのアクセスを許可
-        const datalinkCidr = ec2.AclCidr.ipv4(vpcConfig.networkAddress + "100.0/23");
+        const datalinkCidr = ec2.AclCidr.ipv4(`${vpcConfig.networkAddress}.100.0/23`);
         backendNacl.addEntry('IngressFromDatalinkSubnet', {
             cidr: datalinkCidr,
             ruleNumber: 110,
@@ -160,20 +163,9 @@ export class Vpc {
             ruleAction: ec2.Action.ALLOW,
         });
 
-        const defaultCidr = ec2.AclCidr.ipv4('0.0.0.0/0');
-        // DefaultCidr -> BackendSubnetの通信はブロック
-        backendNacl.addEntry('IngressFromDefaultCidr', {
-            cidr: defaultCidr,
-            ruleNumber: 999,
-            traffic: aclTraffic,
-            direction: ec2.TrafficDirection.EGRESS,
-            networkAclEntryName: `${prefix}-NaclEntry-ingress-from-defaultcidr`,
-            ruleAction: ec2.Action.DENY,
-        });
-
         // BackendSubnet -> DefaultCidrの通信を許可
         backendNacl.addEntry('Egress', {
-            cidr: defaultCidr,
+            cidr: ec2.AclCidr.anyIpv4(),
             ruleNumber: 100,
             traffic: aclTraffic,
             direction: ec2.TrafficDirection.EGRESS,

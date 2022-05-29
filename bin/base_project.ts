@@ -6,7 +6,6 @@ import { EnvironmentConfig, getEnvironmentConfig } from './config/EnvironmentCon
 import { DisposableStack } from '../lib/stacks/DisposableStack';
 
 const app = new cdk.App();
-// aiueokakikukeko
 // ----------------------- contextの値取得、および必要なパラメータの取得・生成 ------------------------------
 // contextから環境の情報を取得。未設定の場合はエラーとする。
 const envType = app.node.tryGetContext('env');
@@ -24,10 +23,10 @@ const systemName = "test";
 let regionPrefix = "";
 
 if (environmentConfig.region == 'ap-northeast-1') {
-    regionPrefix = 'apne-1'
+    regionPrefix = 'apne1'
 }
 else if (environmentConfig.region == 'ap-northeast-3') {
-    regionPrefix = 'apne-3'
+    regionPrefix = 'apne3'
 } else {
     throw new Error(`Error. Unknown region is specified. region:${environmentConfig.region}`);
 }
@@ -48,7 +47,8 @@ const nonDisposableStack = new NonDisposableStack(app, 'NonDisposableStack', {
 const disposableStack = new DisposableStack(app, 'DisposableStack', {
     stackName: `${prefix}-DisposableStack`,
     env: environmentConfig,
-    prefix: prefix
+    prefix: prefix,
+    nonDisposableStack: nonDisposableStack
 })
 
 
