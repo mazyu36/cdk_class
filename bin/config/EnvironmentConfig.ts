@@ -14,18 +14,16 @@ export function getEnvironmentConfig(envType: string, regionName: string): Envir
         case 'dev':
         case 'stg':
             account = "024532196973";
-            break
+            break;
         case 'prd':
             account = "xxxxxxxxxxx";
             break;
+        default:
+            throw new Error(
+                `The accountId setting of "${envType}" does not exist.`
+            )
     }
 
-    // アカウントIDが未設定の場合エラー
-    if (account == undefined) {
-        throw new Error(
-            'Context value env is invalid (use "verify*" or "dev" or "stg" or "prd")'
-        )
-    }
 
     // context値を元にリージョンを設定
     switch (regionName) {
@@ -35,13 +33,10 @@ export function getEnvironmentConfig(envType: string, regionName: string): Envir
         case 'osaka':
             region = "ap-northeast-3";
             break;
-    }
-
-    // リージョンが未設定の場合はエラー
-    if (region == undefined) {
-        throw new Error(
-            'Context value region is invalid (use "tokyo" or "osaka")'
-        )
+        default:
+            throw new Error(
+                `The region setting of "${regionName}" does not exist.`
+            )
     }
 
     // アカウントIDおよびリージョンを返却

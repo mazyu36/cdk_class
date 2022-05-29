@@ -5,8 +5,8 @@ import { aws_iam as iam } from 'aws-cdk-lib';
 import { aws_s3 as s3 } from 'aws-cdk-lib';
 
 import { Construct } from "constructs";
-import { getVpcConfig } from "../config/VpcConfig";
-import { VpcConfig } from "../config/VpcConfig";
+import { getVpcConfig } from "./config/VpcConfig";
+import { VpcConfig } from "./config/VpcConfig";
 
 export class VpcResources {
     public readonly vpc: ec2.Vpc;
@@ -19,11 +19,12 @@ export class VpcResources {
 
     constructor(scope: Construct, prefix: String) {
         // ----------------------- 設定値 ------------------------------
-        // contextから環境名を取得
-        const env: string = scope.node.tryGetContext("env")
+        // contextから環境名、リージョンを取得
+        const envType: string = scope.node.tryGetContext("env")
+        const regionName: string = scope.node.tryGetContext("region")
 
         // Configを取得
-        const vpcConfig: VpcConfig = getVpcConfig(env)
+        const vpcConfig: VpcConfig = getVpcConfig(envType, regionName)
 
 
         // ----------------------- VPC ------------------------------
@@ -56,7 +57,7 @@ export class VpcResources {
         // FrontendSubnet（1a）を作成
         this.frontendSubnet1a = new ec2.PublicSubnet(scope, 'FrontendSubnet1a',
             {
-                availabilityZone: 'ap-northeast-1a',
+                availabilityZone: vpcConfig.primaryAzName,
                 vpcId: this.vpc.vpcId,
                 cidrBlock: `${vpcConfig.networkAddress}.0.0/24`,
                 mapPublicIpOnLaunch: true
@@ -68,7 +69,7 @@ export class VpcResources {
         // FrontendSubnet（1c）を作成
         this.frontendSubnet1c = new ec2.PublicSubnet(scope, 'FrontendSubnet1c',
             {
-                availabilityZone: 'ap-northeast-1c',
+                availabilityZone: vpcConfig.secondaryAzName,
                 vpcId: this.vpc.vpcId,
                 cidrBlock: `${vpcConfig.networkAddress}.1.0/24`,
                 mapPublicIpOnLaunch: true
@@ -82,7 +83,7 @@ export class VpcResources {
         // BackendSubnet（1a）を作成
         this.backendSubnet1a = new ec2.PublicSubnet(scope, 'BackendSubnet1a',
             {
-                availabilityZone: 'ap-northeast-1a',
+                availabilityZone: vpcConfig.primaryAzName,
                 vpcId: this.vpc.vpcId,
                 cidrBlock: `${vpcConfig.networkAddress}.10.0/24`,
                 mapPublicIpOnLaunch: true
@@ -94,7 +95,7 @@ export class VpcResources {
         // BackendSubnet（1c）を作成
         this.backendSubnet1c = new ec2.PublicSubnet(scope, 'BackendSubnet1c',
             {
-                availabilityZone: 'ap-northeast-1c',
+                availabilityZone: vpcConfig.secondaryAzName,
                 vpcId: this.vpc.vpcId,
                 cidrBlock: `${vpcConfig.networkAddress}.11.0/24`,
                 mapPublicIpOnLaunch: true
@@ -108,7 +109,7 @@ export class VpcResources {
         // DatalinkSubnet（1a）を作成
         this.datalinkSubnet1a = new ec2.PrivateSubnet(scope, 'DatalinkSubnet1a',
             {
-                availabilityZone: 'ap-northeast-1a',
+                availabilityZone: vpcConfig.primaryAzName,
                 vpcId: this.vpc.vpcId,
                 cidrBlock: `${vpcConfig.networkAddress}.100.0/24`,
                 mapPublicIpOnLaunch: false
@@ -119,7 +120,7 @@ export class VpcResources {
         // DatalinkSubnet（1c）を作成
         this.datalinkSubnet1c = new ec2.PrivateSubnet(scope, 'DatalinkSubnet1c',
             {
-                availabilityZone: 'ap-northeast-1c',
+                availabilityZone: vpcConfig.secondaryAzName,
                 vpcId: this.vpc.vpcId,
                 cidrBlock: `${vpcConfig.networkAddress}.101.0/24`,
                 mapPublicIpOnLaunch: false
